@@ -194,17 +194,8 @@ tr:hover td{background:#181818}
   </div>
 
   <div class="card hidden" id="cardCredentials">
-    <h2>Step 4 – NetSuite Credentials</h2>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
-      <div><label>Token ID</label><input type="password" id="nsTokenId" placeholder="Token ID"></div>
-      <div><label>Token Secret</label><input type="password" id="nsTokenSecret" placeholder="Token Secret"></div>
-      <div><label>Consumer Key</label><input type="password" id="nsConsumerKey" placeholder="Consumer Key"></div>
-      <div><label>Consumer Secret</label><input type="password" id="nsConsumerSecret" placeholder="Consumer Secret"></div>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:1rem">
-      <input type="checkbox" id="saveCredentials" style="width:16px;height:16px;accent-color:#22c55e">
-      <label style="margin:0;color:#888;font-size:0.85rem">Save credentials in browser (this device only)</label>
-    </div>
+    <h2>Step 4 – Send to NetSuite</h2>
+    <p style="font-size:0.85rem;color:#888;margin-bottom:1rem">Ready to send <strong style="color:#e5e5e5" id="sendSummary"></strong> to NetSuite Sandbox as Draft Journal Entry.</p>
     <div id="sendStatus" class="hidden" style="margin-bottom:1rem;padding:10px 14px;border-radius:7px;font-size:0.85rem"></div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-secondary" onclick="hideSendDialog()">← Back</button>
@@ -353,17 +344,15 @@ function reset(){location.reload();}
 const NS_ACCOUNT  = '11390914-sb1';
 const NS_SCRIPT   = 'customscript2069';
 const NS_DEPLOY   = 'customdeploy1';
-const NS_RESTLET  = `https://${NS_ACCOUNT}.restlets.api.netsuite.com/app/site/hosting/restlet.nl?script=${NS_SCRIPT}&deploy=${NS_DEPLOY}`;
+const NS_RESTLET  = `https://${NS_ACCOUNT}.extforms.netsuite.com/app/site/hosting/scriptlet.nl?script=${NS_SCRIPT}&deploy=${NS_DEPLOY}`;
 
 function showSendDialog(){
   document.getElementById('cardPreview').style.opacity='0.5';
   document.getElementById('cardCredentials').classList.remove('hidden');
-  // Load saved credentials
-  document.getElementById('nsTokenId').value      = localStorage.getItem('ns_token_id')      || '';
-  document.getElementById('nsTokenSecret').value  = localStorage.getItem('ns_token_secret')  || '';
-  document.getElementById('nsConsumerKey').value   = localStorage.getItem('ns_consumer_key')  || '';
-  document.getElementById('nsConsumerSecret').value= localStorage.getItem('ns_consumer_secret')|| '';
-  if(document.getElementById('nsTokenId').value) document.getElementById('saveCredentials').checked = true;
+  const rows = outputRows.length;
+  const entity = outputRows[0]?.['Entity'] || '';
+  const period = outputRows[0]?.['Posting Period'] || '';
+  document.getElementById('sendSummary').textContent = `${rows} lines · ${entity} · ${period}`;
   setStep(4);
 }
 
@@ -420,24 +409,6 @@ async function buildOAuthHeader(method, url, tokenId, tokenSecret, consumerKey, 
 }
 
 async function sendToNetSuite(){
-  const tokenId       = document.getElementById('nsTokenId').value.trim();
-  const tokenSecret   = document.getElementById('nsTokenSecret').value.trim();
-  const consumerKey   = document.getElementById('nsConsumerKey').value.trim();
-  const consumerSecret= document.getElementById('nsConsumerSecret').value.trim();
-
-  if(!tokenId||!tokenSecret||!consumerKey||!consumerSecret){
-    showStatus('error','Please fill in all credential fields.');
-    return;
-  }
-
-  if(document.getElementById('saveCredentials').checked){
-    localStorage.setItem('ns_token_id',      tokenId);
-    localStorage.setItem('ns_token_secret',  tokenSecret);
-    localStorage.setItem('ns_consumer_key',  consumerKey);
-    localStorage.setItem('ns_consumer_secret',consumerSecret);
-  }
-
-  // Build payload from outputRows
   const firstRow = outputRows[0];
   const payload = {
     entity:        firstRow['Entity'],
@@ -461,10 +432,7 @@ async function sendToNetSuite(){
   try {
     const res = await fetch(NS_RESTLET, {
       method: 'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': await buildOAuthHeader('POST', NS_RESTLET, tokenId, tokenSecret, consumerKey, consumerSecret)
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
 
